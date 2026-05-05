@@ -308,17 +308,19 @@ function QuestionCard({
         </div>
       </Link>
 
-      <div className="absolute top-3 right-3 flex gap-1">
+      <div className="absolute top-3 right-3 flex gap-2">
         <Link href={`/folders/${folderId}/edit/${question.id}`} onClick={e => e.stopPropagation()}>
-          <button className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground active:bg-muted transition-colors">
-            <Pencil className="w-4 h-4" />
+          <button className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-muted hover:bg-primary/10 hover:text-primary active:scale-95 transition-all text-muted-foreground text-xs font-medium">
+            <Pencil className="w-3.5 h-3.5" />
+            編集
           </button>
         </Link>
         <button
           onClick={e => { e.stopPropagation(); onDelete() }}
-          className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive active:bg-destructive/10 transition-colors"
+          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-muted hover:bg-destructive/10 hover:text-destructive active:scale-95 transition-all text-muted-foreground text-xs font-medium"
         >
-          <Trash2 className="w-4 h-4" />
+          <Trash2 className="w-3.5 h-3.5" />
+          削除
         </button>
       </div>
     </div>
