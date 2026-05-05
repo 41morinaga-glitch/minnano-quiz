@@ -2,25 +2,28 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { getFolders, getQuestions } from '@/lib/storage'
 import { Folder, Question } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ArrowLeft, Copy, Check, Send, Trophy, Clock } from 'lucide-react'
+import { ArrowLeft, Copy, Check, Send, Clock, Plus } from 'lucide-react'
 
-// host: 問題を出す側 / join: 答える側
 type Role = 'host' | 'join'
 
 type Phase =
-  | 'waiting-member'   // 相手の入室待ち
-  | 'idle'             // 接続済み・待機中
-  | 'waiting-answer'   // [host] 問題送信済み・回答待ち
-  | 'got-answer'       // [host] 回答受信・判定待ち
-  | 'answering'        // [join] 問題受信・回答入力中
-  | 'waiting-result'   // [join] 回答送信済み・結果待ち
-  | 'result'           // 結果表示（両者）
+  | 'waiting-member'
+  | 'idle'
+  | 'waiting-answer'
+  | 'got-answer'
+  | 'answering'
+  | 'waiting-result'
+  | 'result'
+
+const SESSION_KEY = 'quiz_room'
 
 export default function RoomPage() {
+  const router = useRouter()
   const [step, setStep] = useState<'select' | 'room'>('select')
   const [role, setRole] = useState<Role>('host')
   const [code, setCode] = useState('')
@@ -35,19 +38,24 @@ export default function RoomPage() {
   const [myAnswer, setMyAnswer] = useState('')
   const [result, setResult] = useState<boolean | null>(null)
 
-  // ref で最新の role を SSE ハンドラ内で参照
   const roleRef = useRef<Role>('host')
   const esRef = useRef<EventSource | null>(null)
 
-  useEffect(() => { setFolders(getFolders()) }, [])
-
-  // 部屋にいる間、ブラウザバックや誤操作を警告
   useEffect(() => {
-    if (step !== 'room') return
-    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
-    window.addEventListener('beforeunload', handler)
-    return () => window.removeEventListener('beforeunload', handler)
-  }, [step])
+    setFolders(getFolders())
+    // 前回のルームに自動再接続
+    try {
+      const saved = sessionStorage.getItem(SESSION_KEY)
+      if (saved) {
+        const { code: savedCode, role: savedRole } = JSON.parse(saved)
+        roleRef.current = savedRole
+        setRole(savedRole)
+        setCode(savedCode)
+        setStep('room')
+        connect(savedCode)
+      }
+    } catch { /* ignore */ }
+  }, [])
 
   useEffect(() => () => esRef.current?.close(), [])
 
@@ -103,25 +111,25 @@ export default function RoomPage() {
     })
   }
 
+  function enterRoom(roomCode: string, roomRole: Role) {
+    roleRef.current = roomRole
+    setRole(roomRole)
+    setCode(roomCode)
+    setStep('room')
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify({ code: roomCode, role: roomRole }))
+    connect(roomCode)
+  }
+
   function startHost() {
     const newCode = Math.floor(100000 + Math.random() * 900000).toString()
-    roleRef.current = 'host'
-    setRole('host')
-    setCode(newCode)
-    setStep('room')
     setPhase('waiting-member')
     setMemberCount(1)
-    connect(newCode)
+    enterRoom(newCode, 'host')
   }
 
   function startJoin() {
     if (joinCode.length !== 6) return
-    roleRef.current = 'join'
-    setRole('join')
-    setCode(joinCode)
-    setStep('room')
-    setPhase('waiting-member')
-    connect(joinCode)
+    enterRoom(joinCode, 'join')
   }
 
   async function sendQuestion() {
@@ -156,6 +164,7 @@ export default function RoomPage() {
 
   function exitRoom() {
     esRef.current?.close()
+    sessionStorage.removeItem(SESSION_KEY)
     setStep('select')
     setCode('')
     setJoinCode('')
@@ -167,8 +176,10 @@ export default function RoomPage() {
     setResult(null)
   }
 
-  // 参加者は問題に答えるまで退出できない
-  const exitLocked = role === 'join' && (phase === 'answering' || phase === 'waiting-result')
+  function goCreateQuestion() {
+    // ルーム状態はsessionStorageに保存済み、戻ってきたら自動再接続
+    router.push('/')
+  }
 
   // ===== SELECT SCREEN =====
   if (step === 'select') {
@@ -189,7 +200,6 @@ export default function RoomPage() {
         </header>
 
         <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
-          {/* 説明 */}
           <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 text-sm space-y-2">
             <p className="font-bold text-foreground">📱 つなぎ方</p>
             <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
@@ -199,15 +209,12 @@ export default function RoomPage() {
             </ol>
           </div>
 
-          {/* 問題を出す側 */}
           <button
             onClick={startHost}
             className="w-full bg-card border-2 border-border hover:border-primary hover:bg-primary/5 rounded-2xl p-6 text-left transition-all active:scale-[0.98]"
           >
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl">
-                🎤
-              </div>
+              <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center text-3xl">🎤</div>
               <div>
                 <p className="font-bold text-lg">問題を出す</p>
                 <p className="text-muted-foreground text-sm">部屋を作ってコードを相手に教える</p>
@@ -215,12 +222,9 @@ export default function RoomPage() {
             </div>
           </button>
 
-          {/* 答える側 */}
           <div className="bg-card border-2 border-border rounded-2xl p-6 space-y-4">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-green-100 flex items-center justify-center text-3xl">
-                ✏️
-              </div>
+              <div className="w-14 h-14 rounded-2xl bg-green-100 flex items-center justify-center text-3xl">✏️</div>
               <div>
                 <p className="font-bold text-lg">答える</p>
                 <p className="text-muted-foreground text-sm">相手から聞いたコードを入力して入室</p>
@@ -235,11 +239,7 @@ export default function RoomPage() {
                 maxLength={6}
                 inputMode="numeric"
               />
-              <Button
-                onClick={startJoin}
-                disabled={joinCode.length !== 6}
-                className="rounded-xl px-6 h-14 font-bold"
-              >
+              <Button onClick={startJoin} disabled={joinCode.length !== 6} className="rounded-xl px-6 h-14 font-bold">
                 入室
               </Button>
             </div>
@@ -265,18 +265,12 @@ export default function RoomPage() {
               </p>
             </div>
           </div>
-
-          {/* コードとコピー */}
           <div className="flex items-center gap-2">
             <div className="text-right">
               <p className="text-xs text-muted-foreground">コード</p>
               <p className="text-xl font-bold tracking-widest text-primary">{code}</p>
             </div>
-            <button
-              onClick={copyCode}
-              className="p-2 rounded-lg hover:bg-muted transition-colors"
-              title="コードをコピー"
-            >
+            <button onClick={copyCode} className="p-2 rounded-lg hover:bg-muted transition-colors">
               {copied ? <Check className="w-5 h-5 text-green-600" /> : <Copy className="w-5 h-5 text-muted-foreground" />}
             </button>
           </div>
@@ -288,7 +282,6 @@ export default function RoomPage() {
         {/* ===== HOST VIEW ===== */}
         {role === 'host' && (
           <>
-            {/* 相手待ち */}
             {phase === 'waiting-member' && (
               <div className="text-center py-12 animate-fade-in-up">
                 <div className="text-6xl mb-4 animate-pulse">📲</div>
@@ -306,8 +299,7 @@ export default function RoomPage() {
               </div>
             )}
 
-            {/* 接続済み：問題を送る */}
-            {(phase === 'idle') && (
+            {phase === 'idle' && (
               <div className="space-y-4 animate-fade-in-up">
                 <div className="bg-green-50 border border-green-200 rounded-2xl p-4 text-center">
                   <p className="text-green-700 font-bold text-lg">🎉 つながりました！</p>
@@ -315,13 +307,26 @@ export default function RoomPage() {
                 </div>
 
                 {folders.length === 0 ? (
-                  <div className="bg-muted/50 rounded-2xl p-6 text-center text-muted-foreground">
+                  <div className="bg-muted/50 rounded-2xl p-6 text-center">
                     <p className="text-4xl mb-2">📂</p>
-                    <p className="text-sm">ホーム画面でフォルダと問題を先に作ってください</p>
+                    <p className="text-muted-foreground text-sm mb-4">まだ問題がありません</p>
+                    <Button onClick={goCreateQuestion} className="rounded-full gap-2">
+                      <Plus className="w-4 h-4" />
+                      問題を作りに行く
+                    </Button>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <p className="text-sm font-medium text-muted-foreground">フォルダを選んで送る</p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-muted-foreground">フォルダを選んで送る</p>
+                      <button
+                        onClick={goCreateQuestion}
+                        className="flex items-center gap-1 text-xs text-primary hover:underline"
+                      >
+                        <Plus className="w-3 h-3" />
+                        問題を追加
+                      </button>
+                    </div>
                     {folders.map(f => (
                       <button
                         key={f.id}
@@ -350,7 +355,6 @@ export default function RoomPage() {
               </div>
             )}
 
-            {/* 回答待ち */}
             {phase === 'waiting-answer' && currentQuestion && (
               <div className="space-y-4 animate-fade-in-up">
                 <div className="bg-yellow-50 border-2 border-yellow-200 rounded-2xl p-5 text-center">
@@ -365,7 +369,6 @@ export default function RoomPage() {
               </div>
             )}
 
-            {/* 回答受信・判定 */}
             {phase === 'got-answer' && currentQuestion && (
               <div className="space-y-4 animate-scale-in">
                 <div className="bg-card border-2 border-primary/30 rounded-2xl p-5">
@@ -384,24 +387,16 @@ export default function RoomPage() {
                 </div>
                 <p className="text-center text-sm text-muted-foreground font-medium">どちらにしますか？</p>
                 <div className="grid grid-cols-2 gap-3">
-                  <Button
-                    onClick={() => sendResult(true)}
-                    className="rounded-2xl h-14 text-lg font-bold bg-green-500 hover:bg-green-600"
-                  >
+                  <Button onClick={() => sendResult(true)} className="rounded-2xl h-14 text-lg font-bold bg-green-500 hover:bg-green-600">
                     ✅ 正解！
                   </Button>
-                  <Button
-                    onClick={() => sendResult(false)}
-                    variant="outline"
-                    className="rounded-2xl h-14 text-lg font-bold border-red-300 text-red-600 hover:bg-red-50"
-                  >
+                  <Button onClick={() => sendResult(false)} variant="outline" className="rounded-2xl h-14 text-lg font-bold border-red-300 text-red-600 hover:bg-red-50">
                     ❌ 不正解
                   </Button>
                 </div>
               </div>
             )}
 
-            {/* 結果表示（host） */}
             {phase === 'result' && (
               <div className="space-y-4 animate-scale-in">
                 <div className={`rounded-3xl p-8 text-center ${result ? 'bg-green-50 border-2 border-green-200' : 'bg-red-50 border-2 border-red-200'}`}>
@@ -410,7 +405,7 @@ export default function RoomPage() {
                     {result ? '正解！！' : '不正解…'}
                   </p>
                 </div>
-                <Button onClick={() => setPhase('idle')} className="w-full rounded-2xl h-12 font-bold">
+                <Button onClick={() => { setPhase('idle'); setFolders(getFolders()) }} className="w-full rounded-2xl h-12 font-bold">
                   次の問題を送る
                 </Button>
               </div>
@@ -421,7 +416,6 @@ export default function RoomPage() {
         {/* ===== JOIN VIEW ===== */}
         {role === 'join' && (
           <>
-            {/* 相手待ち / 接続待ち */}
             {phase === 'waiting-member' && (
               <div className="text-center py-12 animate-fade-in-up">
                 <div className="text-6xl mb-4 animate-pulse">🔗</div>
@@ -430,7 +424,6 @@ export default function RoomPage() {
               </div>
             )}
 
-            {/* 問題待ち */}
             {phase === 'idle' && (
               <div className="text-center py-12 animate-fade-in-up">
                 <div className="text-6xl mb-4">🎯</div>
@@ -439,7 +432,6 @@ export default function RoomPage() {
               </div>
             )}
 
-            {/* 問題が届いた！回答中 */}
             {phase === 'answering' && currentQuestion && (
               <div className="space-y-4 animate-scale-in">
                 <div className="bg-primary/5 border-2 border-primary/30 rounded-3xl p-6">
@@ -455,11 +447,7 @@ export default function RoomPage() {
                     onKeyDown={e => e.key === 'Enter' && sendAnswer()}
                     autoFocus
                   />
-                  <Button
-                    onClick={sendAnswer}
-                    disabled={!myAnswer.trim()}
-                    className="w-full rounded-2xl h-12 text-base font-bold gap-2"
-                  >
+                  <Button onClick={sendAnswer} disabled={!myAnswer.trim()} className="w-full rounded-2xl h-12 text-base font-bold gap-2">
                     <Send className="w-4 h-4" />
                     回答を送る
                   </Button>
@@ -467,7 +455,6 @@ export default function RoomPage() {
               </div>
             )}
 
-            {/* 回答送信済み・結果待ち */}
             {phase === 'waiting-result' && (
               <div className="text-center py-12 animate-fade-in-up">
                 <Clock className="w-12 h-12 text-primary mx-auto mb-4 animate-pulse" />
@@ -476,7 +463,6 @@ export default function RoomPage() {
               </div>
             )}
 
-            {/* 結果表示（join） */}
             {phase === 'result' && (
               <div className="space-y-4 animate-scale-in">
                 <div className={`rounded-3xl p-8 text-center ${result ? 'bg-green-50 border-2 border-green-200' : 'bg-red-50 border-2 border-red-200'}`}>
@@ -496,21 +482,11 @@ export default function RoomPage() {
           </>
         )}
 
-        {/* 退出ボタン */}
+        {/* 退出ボタン（常に選択可能） */}
         <div className="pt-2">
-          {exitLocked ? (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-center">
-              <p className="text-amber-700 font-medium text-sm">📝 まず回答を送ってから退出できます</p>
-            </div>
-          ) : (
-            <Button
-              variant="outline"
-              onClick={exitRoom}
-              className="w-full rounded-2xl h-12 font-bold text-muted-foreground"
-            >
-              部屋を退出する
-            </Button>
-          )}
+          <Button variant="outline" onClick={exitRoom} className="w-full rounded-2xl h-12 font-bold text-muted-foreground">
+            部屋を退出する
+          </Button>
         </div>
       </main>
     </div>
