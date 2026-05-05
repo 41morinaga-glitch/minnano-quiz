@@ -308,15 +308,15 @@ function QuestionCard({
         </div>
       </Link>
 
-      <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Link href={`/folders/${folderId}/edit/${question.id}`}>
-          <button className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+      <div className="absolute top-3 right-3 flex gap-1">
+        <Link href={`/folders/${folderId}/edit/${question.id}`} onClick={e => e.stopPropagation()}>
+          <button className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground active:bg-muted transition-colors">
             <Pencil className="w-4 h-4" />
           </button>
         </Link>
         <button
-          onClick={onDelete}
-          className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+          onClick={e => { e.stopPropagation(); onDelete() }}
+          className="p-1.5 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive active:bg-destructive/10 transition-colors"
         >
           <Trash2 className="w-4 h-4" />
         </button>
