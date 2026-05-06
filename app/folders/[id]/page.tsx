@@ -290,7 +290,7 @@ function QuestionCard({
       className="group relative bg-card border border-border rounded-2xl p-4 hover:border-primary/30 hover:shadow-sm transition-all duration-200 animate-fade-in-up"
       style={{ animationDelay: `${index * 50}ms` }}
     >
-      <Link href={`/quiz/${folderId}`} className="flex items-start gap-3 pr-16">
+      <Link href={`/quiz/${folderId}?start=${index}`} className="flex items-start gap-3 pr-16">
         <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted text-muted-foreground text-sm font-bold shrink-0 mt-0.5">
           {index + 1}
         </div>

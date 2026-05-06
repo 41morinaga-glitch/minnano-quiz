@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { getFolders, getQuestions, getSettings, saveResult, generateId } from '@/lib/storage'
 import { Folder, Question, Settings } from '@/lib/types'
 import { Button } from '@/components/ui/button'
@@ -13,12 +13,14 @@ type Phase = 'question' | 'reveal' | 'finish'
 export default function QuizPage() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const folderId = params.folderId as string
 
   const [folder, setFolder] = useState<Folder | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
   const [settings, setSettings] = useState<Settings>({ playerName: '' })
-  const [current, setCurrent] = useState(0)
+  const startIndex = Math.max(0, parseInt(searchParams.get('start') ?? '0', 10) || 0)
+  const [current, setCurrent] = useState(startIndex)
   const [phase, setPhase] = useState<Phase>('question')
   const [selectedAnswer, setSelectedAnswer] = useState('')
   const [freeInput, setFreeInput] = useState('')
