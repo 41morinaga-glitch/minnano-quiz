@@ -61,6 +61,24 @@ export function deleteQuestion(id: string): void {
   save(KEYS.questions, getQuestions().filter(q => q.id !== id))
 }
 
+export function moveQuestion(questionId: string, targetFolderId: string): void {
+  const questions = getQuestions()
+  const idx = questions.findIndex(q => q.id === questionId)
+  if (idx < 0) return
+  questions[idx] = { ...questions[idx], folderId: targetFolderId }
+  save(KEYS.questions, questions)
+}
+
+export function copyQuestion(question: Question, targetFolderId: string): void {
+  const copy: Question = {
+    ...question,
+    id: generateId(),
+    folderId: targetFolderId,
+    createdAt: new Date().toISOString(),
+  }
+  saveQuestion(copy)
+}
+
 export function getSettings(): Settings {
   const stored = load<Partial<Settings>>(KEYS.settings, {})
   return { ...DEFAULT_SETTINGS, ...stored }

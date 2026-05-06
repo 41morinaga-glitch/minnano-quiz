@@ -3,7 +3,10 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { getFolders, getQuestions, getResults, deleteQuestion } from '@/lib/storage'
+import {
+  getFolders, getQuestions, getResults,
+  deleteQuestion, moveQuestion, copyQuestion,
+} from '@/lib/storage'
 import { Folder, Question, QuizResult } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,7 +15,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Plus, Play, Pencil, Trash2, FileText, CheckSquare, History } from 'lucide-react'
+import {
+  Plus, Play, Pencil, Trash2, FileText,
+  CheckSquare, History, MoreVertical, FolderInput, Copy,
+} from 'lucide-react'
 
 const TYPE_LABEL: Record<string, string> = {
   free: '記述',
@@ -27,6 +33,7 @@ const TYPE_COLOR: Record<string, string> = {
 }
 
 type Tab = 'questions' | 'history'
+type ActionTarget = { question: Question; type: 'menu' | 'move' | 'copy' | 'delete' }
 
 export default function FolderPage() {
   const params = useParams()
@@ -36,23 +43,44 @@ export default function FolderPage() {
   const [folder, setFolder] = useState<Folder | null>(null)
   const [questions, setQuestions] = useState<Question[]>([])
   const [results, setResults] = useState<QuizResult[]>([])
+  const [allFolders, setAllFolders] = useState<Folder[]>([])
   const [tab, setTab] = useState<Tab>('questions')
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+  const [action, setAction] = useState<ActionTarget | null>(null)
 
   useEffect(() => {
     const folders = getFolders()
     const found = folders.find(f => f.id === folderId)
     if (!found) { router.push('/'); return }
     setFolder(found)
+    setAllFolders(folders)
     setQuestions(getQuestions(folderId))
-    setResults(getResults(folderId).reverse()) // 新しい順
+    setResults(getResults(folderId).reverse())
   }, [folderId, router])
+
+  function refresh() {
+    setQuestions(getQuestions(folderId))
+    setAllFolders(getFolders())
+  }
 
   function handleDelete(id: string) {
     deleteQuestion(id)
-    setQuestions(getQuestions(folderId))
-    setDeleteConfirm(null)
+    refresh()
+    setAction(null)
   }
+
+  function handleMove(question: Question, targetId: string) {
+    moveQuestion(question.id, targetId)
+    refresh()
+    setAction(null)
+  }
+
+  function handleCopy(question: Question, targetId: string) {
+    copyQuestion(question, targetId)
+    refresh()
+    setAction(null)
+  }
+
+  const otherFolders = allFolders.filter(f => f.id !== folderId)
 
   if (!folder) return null
 
@@ -132,7 +160,7 @@ export default function FolderPage() {
                     question={q}
                     index={i}
                     folderId={folderId}
-                    onDelete={() => setDeleteConfirm(q.id)}
+                    onMenu={() => setAction({ question: q, type: 'menu' })}
                   />
                 ))}
               </div>
@@ -161,9 +189,7 @@ export default function FolderPage() {
               </div>
             ) : (
               <>
-                {/* Best scores per player */}
                 <BestScores results={results} />
-                {/* All history */}
                 <div className="mt-5">
                   <p className="text-xs text-muted-foreground font-medium mb-3 uppercase tracking-wider">すべての記録</p>
                   <div className="space-y-2">
@@ -178,19 +204,134 @@ export default function FolderPage() {
         )}
       </main>
 
-      <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
+      {/* アクションメニュー */}
+      <Dialog
+        open={action?.type === 'menu'}
+        onOpenChange={open => !open && setAction(null)}
+      >
+        <DialogContent className="max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base line-clamp-1 pr-4">
+              {action?.question.text}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 pt-1">
+            <Link href={`/folders/${folderId}/edit/${action?.question.id}`} onClick={() => setAction(null)}>
+              <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-muted transition-colors text-left">
+                <Pencil className="w-5 h-5 text-muted-foreground shrink-0" />
+                <span className="font-medium">編集する</span>
+              </button>
+            </Link>
+            <button
+              onClick={() => action && setAction({ ...action, type: 'move' })}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-muted transition-colors text-left"
+            >
+              <FolderInput className="w-5 h-5 text-muted-foreground shrink-0" />
+              <span className="font-medium">別のフォルダに移動</span>
+            </button>
+            <button
+              onClick={() => action && setAction({ ...action, type: 'copy' })}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-muted transition-colors text-left"
+            >
+              <Copy className="w-5 h-5 text-muted-foreground shrink-0" />
+              <span className="font-medium">コピーして別のフォルダに追加</span>
+            </button>
+            <div className="border-t border-border my-1" />
+            <button
+              onClick={() => action && setAction({ ...action, type: 'delete' })}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-destructive/10 text-destructive transition-colors text-left"
+            >
+              <Trash2 className="w-5 h-5 shrink-0" />
+              <span className="font-medium">削除する</span>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* 移動先フォルダ選択 */}
+      <Dialog
+        open={action?.type === 'move'}
+        onOpenChange={open => !open && setAction(null)}
+      >
+        <DialogContent className="max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>移動先のフォルダを選択</DialogTitle>
+          </DialogHeader>
+          {otherFolders.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">他のフォルダがありません</p>
+          ) : (
+            <div className="flex flex-col gap-2 pt-1 max-h-72 overflow-y-auto">
+              {otherFolders.map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => action && handleMove(action.question, f.id)}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-muted transition-colors text-left"
+                >
+                  <span className="text-2xl shrink-0">{f.emoji}</span>
+                  <span className="font-medium">{f.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <Button variant="outline" onClick={() => setAction(null)} className="rounded-xl mt-1">
+            キャンセル
+          </Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* コピー先フォルダ選択 */}
+      <Dialog
+        open={action?.type === 'copy'}
+        onOpenChange={open => !open && setAction(null)}
+      >
+        <DialogContent className="max-w-sm rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>コピー先のフォルダを選択</DialogTitle>
+          </DialogHeader>
+          {allFolders.filter(f => true).length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">フォルダがありません</p>
+          ) : (
+            <div className="flex flex-col gap-2 pt-1 max-h-72 overflow-y-auto">
+              {allFolders.map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => action && handleCopy(action.question, f.id)}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-muted transition-colors text-left"
+                >
+                  <span className="text-2xl shrink-0">{f.emoji}</span>
+                  <div className="min-w-0">
+                    <span className="font-medium">{f.name}</span>
+                    {f.id === folderId && (
+                      <span className="text-xs text-muted-foreground ml-2">（このフォルダ）</span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          <Button variant="outline" onClick={() => setAction(null)} className="rounded-xl mt-1">
+            キャンセル
+          </Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* 削除確認 */}
+      <Dialog
+        open={action?.type === 'delete'}
+        onOpenChange={open => !open && setAction(null)}
+      >
         <DialogContent className="max-w-sm rounded-2xl">
           <DialogHeader>
             <DialogTitle>問題を削除しますか？</DialogTitle>
           </DialogHeader>
           <p className="text-muted-foreground text-sm">この操作は取り消せません。</p>
           <div className="flex gap-2 pt-2">
-            <Button variant="outline" onClick={() => setDeleteConfirm(null)} className="flex-1 rounded-xl">
+            <Button variant="outline" onClick={() => setAction(null)} className="flex-1 rounded-xl">
               キャンセル
             </Button>
             <Button
               variant="destructive"
-              onClick={() => deleteConfirm && handleDelete(deleteConfirm)}
+              onClick={() => action && handleDelete(action.question.id)}
               className="flex-1 rounded-xl"
             >
               削除する
@@ -202,7 +343,6 @@ export default function FolderPage() {
   )
 }
 
-// プレイヤーごとのベストスコア
 function BestScores({ results }: { results: QuizResult[] }) {
   const byPlayer = results.reduce<Record<string, QuizResult[]>>((acc, r) => {
     if (!acc[r.playerName]) acc[r.playerName] = []
@@ -275,12 +415,12 @@ function QuestionCard({
   question,
   index,
   folderId,
-  onDelete,
+  onMenu,
 }: {
   question: Question
   index: number
   folderId: string
-  onDelete: () => void
+  onMenu: () => void
 }) {
   const Icon = question.type === 'free' ? FileText : CheckSquare
 
@@ -289,7 +429,7 @@ function QuestionCard({
       className="group relative bg-card border border-border rounded-2xl p-4 hover:border-primary/30 hover:shadow-sm transition-all duration-200 animate-fade-in-up"
       style={{ animationDelay: `${index * 50}ms` }}
     >
-      <Link href={`/quiz/${folderId}?start=${index}`} className="flex items-start gap-3 pr-16">
+      <Link href={`/quiz/${folderId}?start=${index}`} className="flex items-start gap-3 pr-10">
         <div className="flex items-center justify-center w-8 h-8 rounded-full bg-muted text-muted-foreground text-sm font-bold shrink-0 mt-0.5">
           {index + 1}
         </div>
@@ -307,21 +447,13 @@ function QuestionCard({
         </div>
       </Link>
 
-      <div className="absolute top-3 right-3 flex gap-2">
-        <Link href={`/folders/${folderId}/edit/${question.id}`} onClick={e => e.stopPropagation()}>
-          <button className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-muted hover:bg-primary/10 hover:text-primary active:scale-95 transition-all text-muted-foreground text-xs font-medium">
-            <Pencil className="w-3.5 h-3.5" />
-            編集
-          </button>
-        </Link>
-        <button
-          onClick={e => { e.stopPropagation(); onDelete() }}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-muted hover:bg-destructive/10 hover:text-destructive active:scale-95 transition-all text-muted-foreground text-xs font-medium"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-          削除
-        </button>
-      </div>
+      <button
+        onClick={e => { e.stopPropagation(); onMenu() }}
+        className="absolute top-3 right-3 p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground"
+        title="操作メニュー"
+      >
+        <MoreVertical className="w-4 h-4" />
+      </button>
     </div>
   )
 }
