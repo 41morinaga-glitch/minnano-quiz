@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ArrowLeft, Plus, Play, Pencil, Trash2, FileText, CheckSquare, History } from 'lucide-react'
+import { Plus, Play, Pencil, Trash2, FileText, CheckSquare, History } from 'lucide-react'
 
 const TYPE_LABEL: Record<string, string> = {
   free: '記述',
@@ -61,11 +61,10 @@ export default function FolderPage() {
       {/* Header */}
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-border px-4 py-4">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
-          <Link href="/">
-            <Button variant="ghost" size="icon" className="rounded-full shrink-0">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
+          <Link href="/" className="font-bold text-foreground hover:opacity-80 transition-opacity shrink-0">
+            みんなのクイズ
           </Link>
+          <span className="text-muted-foreground shrink-0">/</span>
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <span className="text-3xl">{folder.emoji}</span>
             <h1 className="text-xl font-bold truncate">{folder.name}</h1>

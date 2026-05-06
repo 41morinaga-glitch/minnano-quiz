@@ -6,7 +6,7 @@ import { getSettings, saveSettings } from '@/lib/storage'
 import { Settings } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ArrowLeft, User } from 'lucide-react'
+import { User } from 'lucide-react'
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings>({ playerName: '' })
@@ -26,11 +26,10 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-border px-4 py-4">
         <div className="max-w-2xl mx-auto flex items-center gap-3">
-          <Link href="/">
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
+          <Link href="/" className="font-bold text-foreground hover:opacity-80 transition-opacity">
+            みんなのクイズ
           </Link>
+          <span className="text-muted-foreground">/</span>
           <h1 className="text-xl font-bold">設定</h1>
         </div>
       </header>

@@ -7,7 +7,7 @@ import { getFolders, getQuestions } from '@/lib/storage'
 import { Folder, Question } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ArrowLeft, Copy, Check, Send, Clock, Plus } from 'lucide-react'
+import { Copy, Check, Send, Clock, Plus } from 'lucide-react'
 
 type Role = 'host' | 'join'
 
@@ -187,11 +187,10 @@ export default function RoomPage() {
       <div className="min-h-screen bg-background">
         <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-border px-4 py-4">
           <div className="max-w-2xl mx-auto flex items-center gap-3">
-            <Link href="/">
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
+            <Link href="/" className="font-bold text-foreground hover:opacity-80 transition-opacity shrink-0">
+              みんなのクイズ
             </Link>
+            <span className="text-muted-foreground">/</span>
             <div>
               <h1 className="text-xl font-bold">親子で遊ぶ</h1>
               <p className="text-xs text-muted-foreground">2台の端末でつながってクイズを出し合おう</p>

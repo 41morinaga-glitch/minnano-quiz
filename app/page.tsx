@@ -67,7 +67,9 @@ export default function HomePage() {
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm border-b border-border px-4 py-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-foreground tracking-tight">みんなのクイズ</h1>
+            <Link href="/">
+              <h1 className="text-2xl font-bold text-foreground tracking-tight hover:opacity-80 transition-opacity">みんなのクイズ</h1>
+            </Link>
             <p className="text-sm text-muted-foreground mt-0.5">問題を作って、みんなで楽しもう！</p>
           </div>
           <div className="flex items-center gap-2">
